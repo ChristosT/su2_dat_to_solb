@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cmath>
 #include <vector>
+#include <map>
 #include <algorithm>
 #ifdef  NDEBUG
 
@@ -46,15 +47,22 @@ std::size_t get_number_of_points(const char* filename)
     return num;
 }
 // check CSolver::Read_SU2_Restart_Binary
-void read_variable_from_binary_restart_file( const char* filename, const char* fieldname, std::vector<double>& mach)
+
+/**
+ * @brief read all variable value on every point from a su2 binary .dat file
+ *
+ * @param filename name of the file
+ * @param nPoints point sin the mesh
+ * @param[out] values  flat table of variable values in the form [ var0 for p0, var1, for p0,...]
+ * @param[out] varnames a map of name of variables appearing in the file and their column ids
+ */
+void read_variables_from_binary_restart_file( const char* filename, std::size_t nPoints,
+                                              std::vector<double>& values,
+                                              std::map<std::string,int>& varnames)
 {
     const int CGNS_STRING_SIZE = 33;
     std::FILE* pFile;
     pFile = std::fopen(filename,"rb");
-    std::size_t nPoints = mach.size();
-    int len = std::min((int)std::strlen(fieldname),CGNS_STRING_SIZE);
-    DPRINT(len);
-    DPRINT(fieldname);
 
     const int nRestart_Vars = 5;
     std::vector<int> Restart_Vars(nRestart_Vars); 
@@ -74,26 +82,20 @@ void read_variable_from_binary_restart_file( const char* filename, const char* f
 
     // Find the column where mach number is located
     char str_buf[CGNS_STRING_SIZE];
-    int column = -1;
     for (int iVar = 0; iVar < nFields; iVar++) 
     {
         ret = fread(str_buf, sizeof(char), CGNS_STRING_SIZE, pFile);
         CHECK(ret == CGNS_STRING_SIZE);
-        if ( std::strncmp(fieldname,str_buf,len) == 0)
-            column = iVar;
-
-        //DPRINT(str_buf);
-        DPRINT("-------------");
+        varnames[str_buf] = iVar;
     }
-    CHECK(column != -1);
-    DPRINT(column);
-    /*--- For now, create a temp 1D buffer to read the data from file. ---*/
+    
+    /*--- prepare return vector */
 
-    std::vector<double> Restart_Data(nFields*nPoints);
+    values.resize(nFields*nPoints);
 
-    /*--- Read in the data for the restart at all local points. ---*/
+    /*--- Read in the data for the restart at all points. ---*/
 
-    ret = std::fread(Restart_Data.data(), sizeof(double), nFields*nPoints, pFile);
+    ret = std::fread(values.data(), sizeof(double), nFields*nPoints, pFile);
     CHECK(ret == nFields * nPoints);
 
     #ifndef NDEBUG
@@ -103,22 +105,19 @@ void read_variable_from_binary_restart_file( const char* filename, const char* f
 
         for( int j = 0 ; j < nFields ; j++)
         {
-            std::cout << Restart_Data[nFields*i + j] << " ";
+            std::cout << values[nFields*i + j] << " ";
         }
         std::cout << std::endl;
     }
 
     #endif
     
-    for( std::size_t i = 0 ; i < nPoints ; i++)
-        mach[i] = Restart_Data[nFields*i + column];
-
     /*--- Close the file. ---*/
 
     std::fclose(pFile);
 
 }
-void write_sol_with_var(std::string filename,std::vector<double>& values)
+void write_sol_with_one_var(std::string filename,std::vector<double>& values)
 {
     std::fstream file;
     filename.append(".sol",4);
@@ -134,7 +133,8 @@ void write_sol_with_var(std::string filename,std::vector<double>& values)
     file << "\nEnd";
     file.close();
 }
-void write_solb_with_var(std::string filename,std::vector<double>& values)
+
+void write_solb_with_vars(std::string filename,int nvars, std::vector<double>& values)
 {
     using std::FILE;
     using std::fwrite;
@@ -148,11 +148,17 @@ void write_solb_with_var(std::string filename,std::vector<double>& values)
     const int version = 2;
     const int dimension_code = 3;
     const int dimension = 3;
+    DPRINT(nvars);
+    CHECK( not values.empty())
+    int64_t res;
 
     // Write file header 
     {
-        fwrite(&code, sizeof(int), 1, pFile);
-        fwrite(&version, sizeof(int), 1, pFile);
+        res = fwrite(&code, sizeof(int), 1, pFile);
+        CHECK(res == 1);
+
+        res = fwrite(&version, sizeof(int), 1, pFile);
+        CHECK(res == 1);
         
         
         // end of the upcomming section
@@ -168,23 +174,27 @@ void write_solb_with_var(std::string filename,std::vector<double>& values)
     // Write solution header 
 
         const int keyword = 62 ; // = SolAtVertices
-        const int npoints  = (int) values.size(); // NOT SAFE for big meshes
+        const int npoints  = (int) values.size()/nvars ; // NOT SAFE for big meshes
 
         // end of the upcomming section
-        int end_position = ftell(pFile) + 5*sizeof(int) + npoints* sizeof(double);
+        int end_position = ftell(pFile) + (4 + nvars)*sizeof(int) + npoints*nvars*sizeof(double);
 
         fwrite(&keyword, sizeof(int), 1, pFile);
         fwrite(&end_position, sizeof(int), 1, pFile);
+
+
         fwrite(&npoints, sizeof(int), 1, pFile);
 
-        const int solutions_per_node = 1;
+        const int solutions_per_node = nvars;
         fwrite(&solutions_per_node, sizeof(int), 1, pFile);
 
         const int solutions_type = 1; // 1 number per node
-        fwrite(&solutions_type, sizeof(int), 1, pFile);
+        for ( int i = 0 ; i < nvars ; i++)
+            fwrite(&solutions_type, sizeof(int), 1, pFile);
 
     // write values at once
-    fwrite(values.data(), sizeof(double)*npoints, 1, pFile);
+    res = fwrite(values.data(), sizeof(double)*values.size(), 1, pFile);
+    CHECK(res == 1);
 
     // finalize file
     {
@@ -203,22 +213,59 @@ int main(int argc, char** argv)
 {
     if(argc == 1)
     {
-        std::cerr << "Extract mach field from a SU2 dat file and save it ot a solb file" <<std::endl;
-        std::cerr << "Usage " << argv[0] << "solution.dat mesh.su2"  <<std::endl;
+        std::cerr << "Extract var fields from a SU2 dat file and save it ot a solb file" <<std::endl;
+        std::cerr << "if varname is given extract specific variable" <<std::endl;
+        std::cerr << "Usage " << argv[0] << "solution.dat mesh.su2 [varname]"  <<std::endl;
     }
     std::size_t nPoints = get_number_of_points(argv[2]);
 
-    std::vector<double> mach(nPoints);
+    std::vector<double> values; // flat array of all variables for all points
+    std::vector<double> requested_variable_values;
+    std::map<std::string,int> varnames; // map from variables present in the file to column id
     const char* filename = argv[1];
+    std::string varname;
 
-    read_variable_from_binary_restart_file(filename,"Mach",mach);
-
-    std::string basefilename(filename);
-    //strip .dat
+    if(argc == 4)
+        varname = argv[3];
+            
+    /* strip ending and dot */
+    std::string basefilename(filename); 
     basefilename.erase(basefilename.size() - 4, 4);
 
-    write_sol_with_var(basefilename,mach);
-    write_solb_with_var(basefilename,mach);
+    read_variables_from_binary_restart_file(filename,nPoints,values,varnames);
+    DPRINT(values.size());
+
+    // extract a single variable and print it in a sol/solb file
+    if( not varname.empty())
+    {
+        auto iter = varnames.find(varname);
+        if( iter == varnames.end())
+        {
+            std::cerr<< "This variables name does not exist in the su2 file" << std::endl;
+            std::cerr<< "Variable names in provided su2 file are " << std::endl;
+            for( auto item : varnames)
+                std::cout << item.first << std::endl;
+        }
+        else
+        {
+            int column = iter->second;
+            int nvars = varnames.size();
+            requested_variable_values.resize(nPoints);
+            for( int64_t i = 0 ; i < nPoints ; i++)
+            {
+                requested_variable_values[i] = values[ column + i*nvars];
+            }
+
+            write_sol_with_one_var(basefilename,requested_variable_values);
+            write_solb_with_vars(basefilename,1,requested_variable_values);
+        }
+
+    }
+    else
+    {
+        int nvars = varnames.size();
+        write_solb_with_vars(basefilename,nvars,values);
+    }
 
     return 0;
 }
