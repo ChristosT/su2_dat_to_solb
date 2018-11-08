@@ -117,7 +117,7 @@ void read_variables_from_binary_restart_file( const char* filename, std::size_t 
     std::fclose(pFile);
 
 }
-void write_sol_with_one_var(std::string filename,std::vector<double>& values)
+void write_sol_with_scalar_vars(std::string filename,int nvars, std::vector<double>& values)
 {
     std::fstream file;
     filename.append(".sol",4);
@@ -126,15 +126,24 @@ void write_sol_with_one_var(std::string filename,std::vector<double>& values)
     file << "\n";
     file << "Dimension 3\n";
     file << "\n";
-    file << "SolAtVertices \n" << values.size() << "\n";
-    file << "1 1\n";
-    for(double x : values)
-        file << x << "\n";
+    file << "SolAtVertices \n" << values.size()/nvars << "\n";
+    file << "1 ";
+    for( int i = 0 ; i  < nvars; i++)
+        file << "1 ";
+    file << "\n";
+    for(std::size_t i = 0 ; i < values.size(); )
+    {
+        for(int j = 0 ; j < nvars; j++ )
+        {
+            file << values[i] << "\n";
+            i++;
+        }
+    }
     file << "\nEnd";
     file.close();
 }
 
-void write_solb_with_vars(std::string filename,int nvars, std::vector<double>& values)
+void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<double>& values)
 {
     using std::FILE;
     using std::fwrite;
@@ -256,15 +265,15 @@ int main(int argc, char** argv)
                 requested_variable_values[i] = values[ column + i*nvars];
             }
 
-            write_sol_with_one_var(basefilename,requested_variable_values);
-            write_solb_with_vars(basefilename,1,requested_variable_values);
+            write_sol_with_scalar_vars(basefilename,1,requested_variable_values);
+            write_solb_with_scalar_vars(basefilename,1,requested_variable_values);
         }
 
     }
     else
     {
         int nvars = varnames.size();
-        write_solb_with_vars(basefilename,nvars,values);
+        write_solb_with_scalar_vars(basefilename,nvars,values);
     }
 
     return 0;
