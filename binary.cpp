@@ -143,7 +143,7 @@ void write_sol_with_scalar_vars(std::string filename,int nvars, std::vector<doub
     file.close();
 }
 
-void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<double>& values)
+void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<double>& values,bool skip_coords=true)
 {
     using std::FILE;
     using std::fwrite;
@@ -180,6 +180,8 @@ void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<dou
     }
 
 
+    if(skip_coords)
+        nvars -= 3;
     // Write solution header 
 
         const int keyword = 62 ; // = SolAtVertices
@@ -202,8 +204,20 @@ void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<dou
             fwrite(&solutions_type, sizeof(int), 1, pFile);
 
     // write values at once
-    res = fwrite(values.data(), sizeof(double)*values.size(), 1, pFile);
-    CHECK(res == 1);
+
+    if( not skip_coords)
+    {
+        res = fwrite(values.data(), sizeof(double)*values.size(), 1, pFile);
+        CHECK(res == 1);
+    }
+    else
+    {
+        for( int i = 0 ; i < npoints;i++)
+        {
+            res = fwrite(&values[i*nvars], sizeof(double)*nvars, 1, pFile);
+            CHECK(res == 1);
+        }
+    }
 
     // finalize file
     {
@@ -260,6 +274,8 @@ int main(int argc, char** argv)
             int column = iter->second;
             int nvars = varnames.size();
             requested_variable_values.resize(nPoints);
+            basefilename.append("_");
+            basefilename.append(iter->first);
             for( int64_t i = 0 ; i < nPoints ; i++)
             {
                 requested_variable_values[i] = values[ column + i*nvars];
