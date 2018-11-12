@@ -330,6 +330,105 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     fclose(pFile);
 
 }
+void write_variables_to_ascii_restart_file( const char* solutionfile, 
+                                             const char* meshfile,
+                                             std::vector<double>& values)
+{
+    using std::FILE;
+    using std::fopen;
+    using std::fwrite;
+    
+    const int CGNS_STRING_SIZE = 33;
+
+    // get points from mesh file
+    std::fstream mesh;
+    mesh.open(meshfile);
+
+    std::string line;
+
+    int ret;
+    CHECK(mesh.is_open());
+    DPRINT(meshfile);
+    while(std::getline(mesh,line))
+    {
+        // Check whether the line starts by a character
+        // of if it is a comment
+        if(line.size() > 0 and (isalpha(line[0])) )
+        {
+            ret = std::strncmp(line.c_str(),"NPOIN", std::min((int)line.size(),5) );
+            if( ret == 0 )
+            {
+
+                break;
+            }
+        }
+    }
+    CHECK(ret == 0);
+    std::size_t nPoints = 0;
+    std::vector< std::array<double,3> > points;
+    std::stringstream ss(line);
+    ss >> line; // NPOIN=
+    ss >> nPoints; 
+    DPRINT(nPoints);
+    double x,y,z;
+    points.reserve(nPoints);
+    while(std::getline(mesh,line))
+    {
+        std::stringstream ss(line);
+        ss >> x >> y >> z;
+
+        points.push_back({x,y,z});
+    }
+
+    mesh.close();
+
+    // write the solution file
+    std::ofstream file;
+    file.open(solutionfile);
+
+    CHECK(file.is_open());
+
+    int nVars = values.size() / nPoints;
+    const int nRestart_Vars = 5;
+    int Restart_Vars[nRestart_Vars] = {-1};
+    int nFields = 3 + nVars;
+    Restart_Vars[0] = 535532 ; // SU2 magic numbers
+    Restart_Vars[1] = nFields;
+    
+    std::vector<std::string> varnames;
+    unpack_variable_names(varnames);
+
+    char fieldname[CGNS_STRING_SIZE];
+        
+    file << "PointID";
+    for (int iVar = 0; iVar < nFields; iVar++) 
+    {
+        file <<"\t";
+        std::strncpy(fieldname, varnames[iVar].data(), std::min((int)varnames.size(),CGNS_STRING_SIZE));
+        file << fieldname;
+    }
+    
+    file <<"\n";
+    
+    for( std::size_t i = 0 ; i < nPoints ; i++)
+    {
+        file << i <<"\t" ;
+        for(int j = 0 ; j < 3; j++)
+            file << points[j][0] << "\t" << points[j][1] << "\t" << points[j][2] ;
+        for(int j = 0 ; j < nVars; j++)
+            file << "\t" << values[i*nVars +j];
+        file <<"\n";
+    }
+    MetaData md;
+    md.unpack();
+    file << "EXT_ITER= " << md.ext_iter << std::endl;;
+    file << "AOA= " << md.aoa << std::endl;
+    file << "SIDESLIP_ANGLE= " << md.sangle << std::endl;
+    file << "INITIAL_BCTHRUST= " << md.initial_bc_thrust << std::endl;
+
+    file.close();
+
+}
 
 void write_sol_with_scalar_vars(std::string filename,int nVars, std::size_t nPoints, std::vector<double>& values)
 {

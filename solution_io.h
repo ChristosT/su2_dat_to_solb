@@ -18,13 +18,17 @@ void read_variables_from_binary_restart_file( const char* filename, const char* 
 
 
 /**
- * @brief write a binary strart file for SU2
+ * @brief write a binary/ascii restart file for SU2
  *
  * @param solutionfile name of the file to be created
  * @param meshfile name of the matching SU2 mesh file
  * @param values  a flat table of size nvars*nPoints of variable values in the form [ var0 for p0, var1, for p0,...]
  */
 void write_variables_to_binary_restart_file( const char* solutionfile, 
+                                             const char* meshfile,
+                                             std::vector<double>& values);
+
+void write_variables_to_ascii_restart_file( const char* solutionfile, 
                                              const char* meshfile,
                                              std::vector<double>& values);
 

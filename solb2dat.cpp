@@ -6,8 +6,16 @@ int main(int argc, char** argv)
     {
         std::cerr << "Convert a solb file holding scalar values of a solution prepared for SU2 to "
         << " native SU2 binary dat format";
-        std::cerr << "Usage " << argv[0] << " solution.solb mesh.su2 newfile.dat"  <<std::endl;
+        std::cerr << "Usage " << argv[0] << " solution.solb mesh.su2 newfile.dat [BINARY|ASCII]"  <<std::endl;
         return 1 ;
+    }
+
+    bool print_binary = true;
+    if (argc == 5)
+    {
+        std::string sarg(argv[4]);
+        if ( sarg == "ASCII")
+            print_binary = false;
     }
 
 
@@ -25,7 +33,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    write_variables_to_binary_restart_file(newfile,meshfile,values);
+    if(print_binary) write_variables_to_binary_restart_file(newfile,meshfile,values);
+    else write_variables_to_ascii_restart_file(newfile,meshfile,values);
 
     return 0;
 }
