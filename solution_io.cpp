@@ -129,18 +129,31 @@ void read_variables_from_binary_restart_file( const char* filename,
                                               std::vector<std::string>& varnames,
                                               std::size_t& nPoints)
 {
-    nPoints = get_number_of_points(meshfile);
-    DPRINT(nPoints);
+    using std::FILE;
+    using std::fopen;
+    using std::fclose;
+    using std::fwrite;
+
     const int CGNS_STRING_SIZE = 33;
-    std::FILE* pFile;
-    pFile = std::fopen(filename,"rb");
+    FILE* pFile;
+    pFile = fopen(filename,"rb");
 
     const int nRestart_Vars = 5;
     std::vector<int> Restart_Vars(nRestart_Vars); 
 
-    // REad number of variables and make sure that it is 5
-    std::size_t ret = std::fread(Restart_Vars.data(), sizeof(int), nRestart_Vars, pFile);
+    /* SU2 binary file header has the following variables in the header
+    * [ SU2 magic number, number of variables per point, number of points, metatadata_ints, metatadata_doubles ]
+    * - SU2 magic number is expected to be 535532
+    * - metatadata_ints is expected to be  1
+    * - metatadata_doubles is expected to be 8
+    *
+    * for more see
+    * see void COutput::WriteRestart_Parallel_Binary
+    *  at https://github.com/su2code/SU2/blob/master/SU2_CFD/src/output_structure.cpp#L17527
+    */
 
+    // Read number of variables and make sure that it is 5
+    std::size_t ret = fread(Restart_Vars.data(), sizeof(int), nRestart_Vars, pFile);
     CHECK( ret == nRestart_Vars);
     DPRINT(ret);
 
@@ -148,6 +161,8 @@ void read_variables_from_binary_restart_file( const char* filename,
     CHECK(Restart_Vars[0] == 535532);
 
     int  nFields = Restart_Vars[1];
+    nPoints = Restart_Vars[2];
+
     DPRINT(nFields);
     varnames.resize(nFields);
     int nVars = nFields - 3; // disregard x,y,z coordinates
@@ -184,22 +199,35 @@ void read_variables_from_binary_restart_file( const char* filename,
             CHECK(ret == 1);
         }
     }
-// https://github.com/su2code/SU2/blob/5d5571f7fc9e4b0f77d093b31d593e5fc94f426f/SU2_CFD/src/solver_structure.cpp#L2608
+
     // read Metadata
-    fseek(pFile, -(sizeof(int) + 8 * sizeof(double)),SEEK_END);
-    MetaData md;
+    // see also https://github.com/su2code/SU2/blob/5d5571f7fc9e4b0f77d093b31d593e5fc94f426f/SU2_CFD/src/solver_structure.cpp#L2608
+    int metatadata_ints = Restart_Vars[3];
+    int metatadata_doubles = Restart_Vars[4];
+
     
-    ret = fread(&md.ext_iter, sizeof(int), 1, pFile);
-    CHECK( ret == 1)
-    ret = fread(&md.aoa, sizeof(double), 1, pFile);
-    CHECK( ret == 1)
-    ret = fread(&md.sangle, sizeof(double), 1, pFile);
-    CHECK( ret == 1)
-    ret = fread(&md.initial_bc_thrust, sizeof(double), 1, pFile);
-    CHECK( ret == 1)
-    ret = fread(&md.other, 5*sizeof(double), 1, pFile);
-    CHECK( ret == 1)
-    md.pack();
+    if(metatadata_ints > 0)
+    {
+        CHECK(metatadata_ints == 1);
+        fseek(pFile, -(metatadata_ints * sizeof(int) + metatadata_doubles * sizeof(double)),SEEK_END);
+        MetaData md;
+
+        ret = fread(&md.ext_iter, sizeof(int), 1, pFile);
+        CHECK( ret == 1);
+        if(metatadata_doubles > 0 )
+        {
+            CHECK(metatadata_doubles == 8);
+            ret = fread(&md.aoa, sizeof(double), 1, pFile);
+            CHECK( ret == 1);
+            ret = fread(&md.sangle, sizeof(double), 1, pFile);
+            CHECK( ret == 1);
+            ret = fread(&md.initial_bc_thrust, sizeof(double), 1, pFile);
+            CHECK( ret == 1);
+            ret = fread(&md.other, 5*sizeof(double), 1, pFile);
+            CHECK( ret == 1);
+        }
+        md.pack();
+    }
 
     #ifndef NDEBUG
     //for( std::size_t i = 0 ; i < nPoints ; i++)
@@ -287,6 +315,10 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     int nFields = 3 + nVars;
     Restart_Vars[0] = 535532 ; // SU2 magic numbers
     Restart_Vars[1] = nFields;
+    Restart_Vars[2] = nPoints;
+    Restart_Vars[3] = 1; // 1 metadata int
+    Restart_Vars[4] = 8; // 8 metadata doubles
+
     
     ret = fwrite(Restart_Vars, sizeof(int), nRestart_Vars, pFile);
     CHECK( ret == nRestart_Vars);
@@ -389,11 +421,6 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
     CHECK(file.is_open());
 
     int nVars = values.size() / nPoints;
-    const int nRestart_Vars = 5;
-    int Restart_Vars[nRestart_Vars] = {-1};
-    int nFields = 3 + nVars;
-    Restart_Vars[0] = 535532 ; // SU2 magic numbers
-    Restart_Vars[1] = nFields;
     
     std::vector<std::string> varnames;
     unpack_variable_names(varnames);
@@ -409,6 +436,7 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
     }
     
     file <<"\n";
+    file.setprecision(15);
     
     for( std::size_t i = 0 ; i < nPoints ; i++)
     {
