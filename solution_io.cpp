@@ -22,6 +22,51 @@
 #endif
 #define CHECK(x) if( not (x)) { std::cerr<< #x << " failed @" << __LINE__ << std::endl; std::abort();}
 
+struct MetaData
+{
+    /*--- External iteration ---*/ 
+    // EXT_ITER
+    int ext_iter;
+    /*--- Angle of attack ---*/
+    // AOA
+    double aoa;
+    /*--- Sideslip angle ---*/
+    // SIDESLIP_ANGLE
+    double sangle;
+    /*--- BCThrust angle ---*/
+    // INITIAL_BCTHRUST
+    double initial_bc_thrust;
+
+    double other[5];
+    void pack()
+    {
+        std::ofstream file;
+        file.open("metadata.txt");
+        CHECK(file.is_open());
+        file << ext_iter << " ";
+        file << aoa << " ";
+        file << sangle << " ";
+        file << initial_bc_thrust << " ";
+        for( int i = 0 ; i < 5 ; i++)
+            file << other[i] << " ";
+        file.close();
+    }
+    void unpack()
+    {
+        std::ifstream file;
+        file.open("metadata.txt");
+        CHECK(file.is_open());
+        file >> ext_iter;
+        file >> aoa;
+        file >> sangle;
+        file >> initial_bc_thrust;
+        for( int i = 0 ; i < 5 ; i++)
+        file >> other[i];
+        file.close();
+    }
+
+};
+
 // read the number of points from an su2 mesh
 static std::size_t get_number_of_points(const char* filename)
 {
@@ -135,29 +180,46 @@ void read_variables_from_binary_restart_file( const char* filename,
         {
             ret = fread(coords, sizeof(double), 3, pFile);
             CHECK(ret == 3);
-            ret = fread(&values[i*nvars], sizeof(double)*nvars, 1, pFile);
+            ret = fread(&values[i*nVars], sizeof(double)*nVars, 1, pFile);
             CHECK(ret == 1);
         }
     }
-
+// https://github.com/su2code/SU2/blob/5d5571f7fc9e4b0f77d093b31d593e5fc94f426f/SU2_CFD/src/solver_structure.cpp#L2608
+    // read Metadata
+    fseek(pFile, -(sizeof(int) + 8 * sizeof(double)),SEEK_END);
+    MetaData md;
+    
+    ret = fread(&md.ext_iter, sizeof(int), 1, pFile);
+    CHECK( ret == 1)
+    ret = fread(&md.aoa, sizeof(double), 1, pFile);
+    CHECK( ret == 1)
+    ret = fread(&md.sangle, sizeof(double), 1, pFile);
+    CHECK( ret == 1)
+    ret = fread(&md.initial_bc_thrust, sizeof(double), 1, pFile);
+    CHECK( ret == 1)
+    ret = fread(&md.other, 5*sizeof(double), 1, pFile);
+    CHECK( ret == 1)
+    md.pack();
 
     #ifndef NDEBUG
     //for( std::size_t i = 0 ; i < nPoints ; i++)
-    for( std::size_t i = 0 ; i < 10 ; i++)
-    {
+    //for( std::size_t i = 0 ; i < 10 ; i++)
+    //{
 
-        for( int j = 0 ; j < nvars ; j++)
-        {
-            printf("%f ",values[nvars*i + j]);
-        }
-        std::cout << std::endl;
-    }
+    //    for( int j = 0 ; j < nVars ; j++)
+    //    {
+    //        printf("%f ",values[nVars*i + j]);
+    //    }
+    //    std::cout << std::endl;
+    //}
 
     #endif
     
     /*--- Close the file. ---*/
 
     std::fclose(pFile);
+
+    pack_variable_names(varnames);
 
 }
 
@@ -246,8 +308,22 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     for( std::size_t i = 0 ; i < nPoints ; i++)
     {
         fwrite(points[i].data(), sizeof(double), 3, pFile);
-        fwrite(&values[i*nvars], sizeof(double),nvars,pFile);
+        fwrite(&values[i*nVars], sizeof(double),nVars,pFile);
     }
+    MetaData md;
+    md.unpack();
+    DPRINT(md.ext_iter);
+    ret = fwrite(&md.ext_iter, sizeof(int), 1, pFile);
+    CHECK( ret == 1)
+    ret = fwrite(&md.aoa, sizeof(double), 1, pFile);
+    CHECK( ret == 1)
+    ret = fwrite(&md.sangle, sizeof(double), 1, pFile);
+    CHECK( ret == 1)
+    ret = fwrite(&md.initial_bc_thrust, sizeof(double), 1, pFile);
+    CHECK( ret == 1)
+    ret = fwrite(md.other, sizeof(double)*5, 1, pFile);
+    CHECK( ret == 1)
+
 
     /*--- Close the file. ---*/
 
