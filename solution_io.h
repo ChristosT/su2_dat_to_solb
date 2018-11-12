@@ -12,7 +12,8 @@
  */
 void read_variables_from_binary_restart_file( const char* filename, const char* meshfile,
                                               std::vector<double>& values,
-                                              std::vector<std::string>& varnames);
+                                              std::vector<std::string>& varnames,
+                                              std::size_t& nPoints);
 
 
 
@@ -31,13 +32,14 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
  * @brief write an ascii(sol)/binary(solb) Gamma Mesh Format (GMF) solution file of \p nvar scalar variables per vertex
  *
  * @param basefilename name of the file wqith no suffix
- * @param nvars number of variables(per point) contained in the values vector
+ * @param nVars number of variables(per point) contained in the values vector
+ * @param nPoints number of points in the solution
  * @param values  flat table of variable values in the form [ var0 for p0, var1, for p0,...]
  *
  * @note uses SolAtVertices keyword
  */
-void write_sol_with_scalar_vars(std::string basefilename,int nvars, std::vector<double>& values);
-void write_solb_with_scalar_vars(std::string basefilename,int nvars, std::vector<double>& values);
+void write_sol_with_scalar_vars(std::string basefilename,int nVars, std::size_t nPoints, std::vector<double>& values);
+void write_solb_with_scalar_vars(std::string basefilename,int nVars,std::size_t nPoints,  std::vector<double>& values);
 
 /**
  * @brief read a binary(solb) Gamma Mesh Format (GMF) solution file of \p nvar scalar variables per vertex

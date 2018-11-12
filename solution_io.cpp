@@ -48,14 +48,43 @@ static std::size_t get_number_of_points(const char* filename)
 
     return num;
 }
+
+static void pack_variable_names(std::vector<std::string>& varnames)
+{
+    std::ofstream file;
+    file.open("varnames.txt");
+    CHECK(file.is_open());
+    file << varnames.size() << " ";
+    for(std::string& name :varnames)
+        file << name << " ";
+
+    file.close();
+}
+static void unpack_variable_names(std::vector<std::string>& varnames)
+{
+    std::ifstream file;
+    file.open("varnames.txt");
+    CHECK(file.is_open());
+
+    std::size_t size;
+    file >> size;
+    varnames.resize(size);
+    for(std::size_t i = 0 ; i < size; i++)
+        file >> varnames[i];
+
+    file.close();
+}
+
+
 // check CSolver::Read_SU2_Restart_Binary in SU2 for more
 
 void read_variables_from_binary_restart_file( const char* filename, 
                                               const char* meshfile,
                                               std::vector<double>& values,
-                                              std::vector<std::string>& varnames)
+                                              std::vector<std::string>& varnames,
+                                              std::size_t& nPoints)
 {
-    std::size_t nPoints = get_number_of_points(meshfile);
+    nPoints = get_number_of_points(meshfile);
     DPRINT(nPoints);
     const int CGNS_STRING_SIZE = 33;
     std::FILE* pFile;
@@ -76,7 +105,7 @@ void read_variables_from_binary_restart_file( const char* filename,
     int  nFields = Restart_Vars[1];
     DPRINT(nFields);
     varnames.resize(nFields);
-    int nvars = nFields - 3; // disregard x,y,z coordinates
+    int nVars = nFields - 3; // disregard x,y,z coordinates
 
     // Find the column where mach number is located
     char str_buf[CGNS_STRING_SIZE];
@@ -89,7 +118,7 @@ void read_variables_from_binary_restart_file( const char* filename,
     
     /*--- prepare return vector */
 
-    values.resize(nFields*nPoints);
+    values.resize(nVars*nPoints);
 
     /*--- Read in the data for the restart at all points. ---*/
 
@@ -190,32 +219,26 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
 
 
 
-    int nvars = nPoints / values.size();
+    int nVars = values.size() / nPoints;
     const int nRestart_Vars = 5;
     int Restart_Vars[nRestart_Vars] = {-1};
-    int nFields = 3 + nvars;
+    int nFields = 3 + nVars;
     Restart_Vars[0] = 535532 ; // SU2 magic numbers
     Restart_Vars[1] = nFields;
     
     ret = fwrite(Restart_Vars, sizeof(int), nRestart_Vars, pFile);
     CHECK( ret == nRestart_Vars);
 
-    CHECK( nvars + 3 == 18);
-    // Find the column where mach number is located
-    char fieldnames[18][CGNS_STRING_SIZE] = {"x","y","z","Density",
-        "X-Momentum","Y-Momentum","Z-Momentum",
-        "Energy","Pressure","Temperature","Mach",
-        "C<sub>p</sub>","<greek>m</greek>",
-        "C<sub>f</sub>_x","C<sub>f</sub>_y","C<sub>f</sub>_z",
-        "h","y<sup>+</sup>"};
+    CHECK( nVars + 3 == 18);
+    std::vector<std::string> varnames;
+    unpack_variable_names(varnames);
 
-        
-        
-        
+    char fieldname[CGNS_STRING_SIZE];
         
     for (int iVar = 0; iVar < nFields; iVar++) 
     {
-        ret = fwrite(fieldnames[iVar], sizeof(char), CGNS_STRING_SIZE, pFile);
+        std::strncpy(fieldname, varnames[iVar].data(), std::min((int)varnames.size(),CGNS_STRING_SIZE));
+        ret = fwrite(fieldname, sizeof(char), CGNS_STRING_SIZE, pFile);
         CHECK(ret == CGNS_STRING_SIZE);
     }
     
@@ -232,7 +255,7 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
 
 }
 
-void write_sol_with_scalar_vars(std::string filename,int nvars, std::vector<double>& values)
+void write_sol_with_scalar_vars(std::string filename,int nVars, std::size_t nPoints, std::vector<double>& values)
 {
     std::fstream file;
     filename.append(".sol",4);
@@ -241,14 +264,14 @@ void write_sol_with_scalar_vars(std::string filename,int nvars, std::vector<doub
     file << "\n";
     file << "Dimension 3\n";
     file << "\n";
-    file << "SolAtVertices \n" << values.size()/nvars << "\n";
+    file << "SolAtVertices \n" << nPoints << "\n";
     file << "1 ";
-    for( int i = 0 ; i  < nvars; i++)
+    for( int i = 0 ; i  < nVars; i++)
         file << "1 ";
     file << "\n";
     for(std::size_t i = 0 ; i < values.size(); )
     {
-        for(int j = 0 ; j < nvars; j++ )
+        for(int j = 0 ; j < nVars; j++ )
         {
             file << values[i] ;
             i++;
@@ -259,7 +282,7 @@ void write_sol_with_scalar_vars(std::string filename,int nvars, std::vector<doub
     file.close();
 }
 
-void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<double>& values)
+void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPoints, std::vector<double>& values)
 {
     using std::FILE;
     using std::fwrite;
@@ -273,8 +296,11 @@ void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<dou
     const int version = 2;
     const int dimension_code = 3;
     const int dimension = 3;
-    DPRINT(nvars);
+    DPRINT(nVars);
+    DPRINT(nPoints);
+    DPRINT(values.size());
     CHECK( not values.empty())
+    CHECK(values.size()  == nVars *nPoints);
     int64_t res;
 
     // Write file header 
@@ -299,22 +325,23 @@ void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<dou
     // Write solution header 
 
         const int keyword = 62 ; // = SolAtVertices
-        const int npoints  = (int) values.size()/nvars ; // NOT SAFE for big meshes
 
         // end of the upcomming section
-        int end_position = ftell(pFile) + (4 + nvars)*sizeof(int) + npoints*nvars*sizeof(double);
+        int end_position = ftell(pFile) + (4 + nVars)*sizeof(int) + nPoints*nVars*sizeof(double);
 
         fwrite(&keyword, sizeof(int), 1, pFile);
         fwrite(&end_position, sizeof(int), 1, pFile);
 
 
-        fwrite(&npoints, sizeof(int), 1, pFile);
+        int nPoints_32 = (int) nPoints; //TODO  can we use big integers ??
+        DPRINT(nPoints_32);
+        fwrite(&nPoints_32, sizeof(int), 1, pFile);
 
-        const int solutions_per_node = nvars;
+        const int solutions_per_node = nVars;
         fwrite(&solutions_per_node, sizeof(int), 1, pFile);
 
         const int solutions_type = 1; // 1 number per node
-        for ( int i = 0 ; i < nvars ; i++)
+        for ( int i = 0 ; i < nVars ; i++)
             fwrite(&solutions_type, sizeof(int), 1, pFile);
 
     // write values at once
@@ -332,7 +359,7 @@ void write_solb_with_scalar_vars(std::string filename,int nvars, std::vector<dou
 
     fclose(pFile);
 }
-void read_solb_with_scalar_vars(std::string filename,int& nvars, std::vector<double>& values)
+void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<double>& values)
 {
     using std::FILE;
     using std::fwrite;
@@ -345,7 +372,7 @@ void read_solb_with_scalar_vars(std::string filename,int& nvars, std::vector<dou
     int version;
     int dimension_code;
     int dimension;
-    CHECK( not values.empty())
+    CHECK(values.empty())
     int64_t res;
 
     // Write file header 
@@ -378,7 +405,7 @@ void read_solb_with_scalar_vars(std::string filename,int& nvars, std::vector<dou
     // Write solution header 
 
         int keyword;
-        int npoints;
+        int nPoints;
         int end_position;
 
 
@@ -389,24 +416,24 @@ void read_solb_with_scalar_vars(std::string filename,int& nvars, std::vector<dou
         fread(&end_position, sizeof(int), 1, pFile);
 
 
-        fread(&npoints, sizeof(int), 1, pFile);
-        CHECK(npoints > 0);
+        fread(&nPoints, sizeof(int), 1, pFile);
+        CHECK(nPoints > 0);
 
         int solutions_per_node;
         fread(&solutions_per_node, sizeof(int), 1, pFile);
         CHECK(solutions_per_node > 0);
 
-        nvars = solutions_per_node;
+        nVars = solutions_per_node;
 
         //int end_position = ftell(pFile) + (4 + nvars)*sizeof(int) + npoints*nvars*sizeof(double);
         int solutions_type; 
-        for ( int i = 0 ; i < nvars ; i++)
+        for ( int i = 0 ; i < nVars ; i++)
         {
             fread(&solutions_type, sizeof(int), 1, pFile);
             CHECK( solutions_type == 1);
         }
 
-        values.resize( nvars * npoints);
+        values.resize( nVars * nPoints);
 
 
         // read values at once

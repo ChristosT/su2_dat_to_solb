@@ -22,6 +22,7 @@ int main(int argc, char** argv)
     const char* filename = argv[1];
     const char* meshfile = argv[2];
     std::string varname;
+    std::size_t nPoints;
     bool print_binary = true;
 
     std::string sarg(argv[3]);
@@ -43,11 +44,13 @@ int main(int argc, char** argv)
     std::string basefilename(filename); 
     basefilename.erase(basefilename.size() - 4, 4);
 
-    read_variables_from_binary_restart_file(filename,meshfile,values,varnames);
+    read_variables_from_binary_restart_file(filename,meshfile,values,varnames,nPoints);
 
     std::cout << "The solution file contains the following variables\n";
+    std::cout << "--------------------------\n";
     for( auto item : varnames)
         std::cout << item << std::endl;
+    std::cout << "--------------------------\n";
 
     // extract a single variable and print it in a sol/solb file
     if( not varname.empty())
@@ -70,27 +73,26 @@ int main(int argc, char** argv)
             }
             std::cout << "column " << column << std::endl;
             int nvars = varnames.size() - 3;
-            std::size_t nPoints = values.size() / nvars;
-            //std::cout << "nPoints " << nPoints << std::endl;
+            std::cout << "nPoints " << nPoints << std::endl;
+            std::cout << "nvars " << nvars << std::endl;
             requested_variable_values.resize(nPoints);
             basefilename.append("_");
             basefilename.append(varname);
             for(std::size_t i = 0 ; i < nPoints ; i++)
             {
                 requested_variable_values[i] = values[ column + i*nvars];
-                assert( requested_variable_values[i]  < 0.4);
             }
 
-            if (print_binary) write_solb_with_scalar_vars(basefilename,1,requested_variable_values);
-            else write_sol_with_scalar_vars(basefilename,1,requested_variable_values);
+            if (print_binary) write_solb_with_scalar_vars(basefilename,1,nPoints,requested_variable_values);
+            else write_sol_with_scalar_vars(basefilename,1,nPoints, requested_variable_values);
         }
 
     }
     else
     {
         int nvars = varnames.size() - 3;
-        if (print_binary) write_solb_with_scalar_vars(basefilename,nvars,values);
-        else write_sol_with_scalar_vars(basefilename,nvars,values);
+        if (print_binary) write_solb_with_scalar_vars(basefilename,nvars,nPoints,values);
+        else write_sol_with_scalar_vars(basefilename,nvars,nPoints,values);
     }
 
     return 0;
