@@ -9,8 +9,8 @@ int main(int argc, char** argv)
         std::cerr << "Extract var fields from a SU2 dat file and save it to a solb/sol file" <<std::endl;
         std::cerr << "if varname is given extract specific variable otherwise the whole " <<
         "data minus the point coordinates is used " <<std::endl;
-        std::cerr << "Usage " << argv[0] << " solution.dat mesh.su2 {sol,solb} [varname]"  <<std::endl;
-        std::cerr << "Example " << argv[0] << " restart_solution.dat wing.su2 solb Mach"  <<std::endl;
+        std::cerr << "Usage " << argv[0] << " solution.dat {sol,solb} [varname]"  <<std::endl;
+        std::cerr << "Example " << argv[0] << " restart_solution.dat solb Mach"  <<std::endl;
         return 1 ;
     }
 
@@ -20,12 +20,11 @@ int main(int argc, char** argv)
     //std::map<std::string,int> varnames; // map from variables present in the file to column id
     std::vector<std::string> varnames; // map from variables present in the file to column id
     const char* filename = argv[1];
-    const char* meshfile = argv[2];
     std::string varname;
     std::size_t nPoints;
     bool print_binary = true;
 
-    std::string sarg(argv[3]);
+    std::string sarg(argv[2]);
     if( sarg == "sol")
     {
         print_binary = false;
@@ -37,14 +36,14 @@ int main(int argc, char** argv)
     }
 
 
-    if(argc == 5)
-        varname = argv[4];
+    if(argc == 4)
+        varname = argv[3];
             
     /* strip ending and dot */
     std::string basefilename(filename); 
     basefilename.erase(basefilename.size() - 4, 4);
 
-    read_variables_from_binary_restart_file(filename,meshfile,values,varnames,nPoints);
+    read_variables_from_binary_restart_file(filename,values,varnames,nPoints);
 
     std::cout << "The solution file contains the following variables\n";
     std::cout << "--------------------------\n";

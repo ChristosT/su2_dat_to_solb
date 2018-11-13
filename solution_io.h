@@ -6,11 +6,10 @@
  * @brief read all variable values on every point from a su2 binary .dat file
  *
  * @param filename name of the solution file
- * @param meshfile filenam of matching file mesh file
  * @param[out] values  flat table of variable values in the form [ var0 for p0, var1, for p0,...]
  * @param[out] varnames a vector of names of variables appearing in the file. index matches with column ids
  */
-void read_variables_from_binary_restart_file( const char* filename, const char* meshfile,
+void read_variables_from_binary_restart_file( const char* filename, 
                                               std::vector<double>& values,
                                               std::vector<std::string>& varnames,
                                               std::size_t& nPoints);

@@ -9,6 +9,7 @@
 #include <map>
 #include <algorithm>
 #include <cassert>
+#include <iomanip>
 #ifdef  NDEBUG
 
 #define DPRINT(x) (void)(x);
@@ -124,7 +125,6 @@ static void unpack_variable_names(std::vector<std::string>& varnames)
 // check CSolver::Read_SU2_Restart_Binary in SU2 for more
 
 void read_variables_from_binary_restart_file( const char* filename, 
-                                              const char* meshfile,
                                               std::vector<double>& values,
                                               std::vector<std::string>& varnames,
                                               std::size_t& nPoints)
@@ -421,6 +421,7 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
     CHECK(file.is_open());
 
     int nVars = values.size() / nPoints;
+    int nFields = nVars + 3;
     
     std::vector<std::string> varnames;
     unpack_variable_names(varnames);
@@ -436,7 +437,7 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
     }
     
     file <<"\n";
-    file.setprecision(15);
+    file << std::setprecision(15);
     
     for( std::size_t i = 0 ; i < nPoints ; i++)
     {
