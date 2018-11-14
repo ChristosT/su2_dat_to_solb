@@ -467,7 +467,6 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
 void write_sol_with_scalar_vars(std::string filename,int nVars, std::size_t nPoints, std::vector<double>& values)
 {
     std::fstream file;
-    filename.append(".sol",4);
     file.open(filename,std::ios_base::out);
     file << "MeshVersionFormatted 2\n";
     file << "\n";
@@ -499,7 +498,6 @@ void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPo
     using std::fclose;
     
     FILE* pFile;
-    filename.append(".solb",5);
     pFile = fopen(filename.c_str(),"wb");
     const int code = 1;
     const int version = 2;
