@@ -137,6 +137,11 @@ void read_variables_from_binary_restart_file( const char* filename,
     const int CGNS_STRING_SIZE = 33;
     FILE* pFile;
     pFile = fopen(filename,"rb");
+    if(pFile == NULL)
+    {
+        std::cerr << __func__ << "@" << __LINE__ << " cannot open file " << filename  << std::endl;
+        std::abort();
+    }
 
     const int nRestart_Vars = 5;
     std::vector<int> Restart_Vars(nRestart_Vars); 
