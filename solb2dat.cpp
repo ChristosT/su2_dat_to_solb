@@ -27,11 +27,6 @@ int main(int argc, char** argv)
     int nvars;
 
     read_solb_with_scalar_vars(solfile,nvars,values);
-    if(nvars + 3 != 18)
-    {
-        std::cerr << " Solution file should have 15 variables";
-        return 1;
-    }
 
     if(print_binary) write_variables_to_binary_restart_file(newfile,meshfile,values);
     else write_variables_to_ascii_restart_file(newfile,meshfile,values);
