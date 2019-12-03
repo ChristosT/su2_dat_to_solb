@@ -328,7 +328,6 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     ret = fwrite(Restart_Vars, sizeof(int), nRestart_Vars, pFile);
     CHECK( ret == nRestart_Vars);
 
-    CHECK( nVars + 3 == 18);
     std::vector<std::string> varnames;
     unpack_variable_names(varnames);
 
