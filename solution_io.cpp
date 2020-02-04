@@ -52,10 +52,12 @@ struct MetaData
             file << other[i] << " ";
         file.close();
     }
-    void unpack()
+    bool unpack()
     {
         std::ifstream file;
         file.open("metadata.txt");
+        if( not file.good())
+            return false;
         CHECK(file.is_open());
         file >> ext_iter;
         file >> aoa;
@@ -64,6 +66,7 @@ struct MetaData
         for( int i = 0 ; i < 5 ; i++)
         file >> other[i];
         file.close();
+        return true;
     }
 
 };
@@ -347,18 +350,20 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
         fwrite(&values[i*nVars], sizeof(double),nVars,pFile);
     }
     MetaData md;
-    md.unpack();
-    DPRINT(md.ext_iter);
-    ret = fwrite(&md.ext_iter, sizeof(int), 1, pFile);
-    CHECK( ret == 1)
-    ret = fwrite(&md.aoa, sizeof(double), 1, pFile);
-    CHECK( ret == 1)
-    ret = fwrite(&md.sangle, sizeof(double), 1, pFile);
-    CHECK( ret == 1)
-    ret = fwrite(&md.initial_bc_thrust, sizeof(double), 1, pFile);
-    CHECK( ret == 1)
-    ret = fwrite(md.other, sizeof(double)*5, 1, pFile);
-    CHECK( ret == 1)
+    if(md.unpack())
+    {
+        DPRINT(md.ext_iter);
+        ret = fwrite(&md.ext_iter, sizeof(int), 1, pFile);
+        CHECK( ret == 1);
+        ret = fwrite(&md.aoa, sizeof(double), 1, pFile);
+        CHECK( ret == 1);
+        ret = fwrite(&md.sangle, sizeof(double), 1, pFile);
+        CHECK( ret == 1);
+        ret = fwrite(&md.initial_bc_thrust, sizeof(double), 1, pFile);
+        CHECK( ret == 1);
+        ret = fwrite(md.other, sizeof(double)*5, 1, pFile);
+        CHECK( ret == 1);
+    }
 
 
     /*--- Close the file. ---*/
@@ -453,11 +458,13 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
         file <<"\n";
     }
     MetaData md;
-    md.unpack();
-    file << "EXT_ITER= " << md.ext_iter << std::endl;;
-    file << "AOA= " << md.aoa << std::endl;
-    file << "SIDESLIP_ANGLE= " << md.sangle << std::endl;
-    file << "INITIAL_BCTHRUST= " << md.initial_bc_thrust << std::endl;
+    if(md.unpack())
+    {
+        file << "EXT_ITER= " << md.ext_iter << std::endl;;
+        file << "AOA= " << md.aoa << std::endl;
+        file << "SIDESLIP_ANGLE= " << md.sangle << std::endl;
+        file << "INITIAL_BCTHRUST= " << md.initial_bc_thrust << std::endl;
+    }
 
     file.close();
 
