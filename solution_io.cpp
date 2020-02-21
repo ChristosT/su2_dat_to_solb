@@ -70,58 +70,60 @@ struct MetaData
     }
 
 };
-
-// read the number of points from an su2 mesh
-static std::size_t get_number_of_points(const char* filename)
+namespace 
 {
-    std::fstream file;
-    file.open(filename,std::ios_base::in);
-    std::string line;
-    std::size_t num = 0;
-    while(std::getline(file,line))
+    // read the number of points from an su2 mesh
+    std::size_t get_number_of_points(const char* filename)
     {
-        if ( line.size() > 0 )
+        std::fstream file;
+        file.open(filename,std::ios_base::in);
+        std::string line;
+        std::size_t num = 0;
+        while(std::getline(file,line))
         {
-            int res = std::strncmp(line.c_str(),"NPOIN", std::min(line.size(),(long unsigned int)5));
-            if (res == 0)
+            if ( line.size() > 0 )
             {
-                // split in spaces
-                std::istringstream stream(line);
-                stream >> line; // NPOINT=
-                stream >> num;
-                break;
+                int res = std::strncmp(line.c_str(),"NPOIN", std::min(line.size(),(long unsigned int)5));
+                if (res == 0)
+                {
+                    // split in spaces
+                    std::istringstream stream(line);
+                    stream >> line; // NPOINT=
+                    stream >> num;
+                    break;
+                }
             }
         }
+        file.close();
+
+        return num;
     }
-    file.close();
 
-    return num;
-}
+    void pack_variable_names(std::vector<std::string>& varnames)
+    {
+        std::ofstream file;
+        file.open("varnames.txt");
+        CHECK(file.is_open());
+        file << varnames.size() << " ";
+        for(std::string& name :varnames)
+            file << name << " ";
 
-static void pack_variable_names(std::vector<std::string>& varnames)
-{
-    std::ofstream file;
-    file.open("varnames.txt");
-    CHECK(file.is_open());
-    file << varnames.size() << " ";
-    for(std::string& name :varnames)
-        file << name << " ";
+        file.close();
+    }
+    void unpack_variable_names(std::vector<std::string>& varnames)
+    {
+        std::ifstream file;
+        file.open("varnames.txt");
+        CHECK(file.is_open());
 
-    file.close();
-}
-static void unpack_variable_names(std::vector<std::string>& varnames)
-{
-    std::ifstream file;
-    file.open("varnames.txt");
-    CHECK(file.is_open());
+        std::size_t size;
+        file >> size;
+        varnames.resize(size);
+        for(std::size_t i = 0 ; i < size; i++)
+            file >> varnames[i];
 
-    std::size_t size;
-    file >> size;
-    varnames.resize(size);
-    for(std::size_t i = 0 ; i < size; i++)
-        file >> varnames[i];
-
-    file.close();
+        file.close();
+    }
 }
 
 
@@ -634,13 +636,15 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
 
 
         // end of the upcomming section
-        fread(&dimension_code, sizeof(int32_t), 1, pFile);
+        res = fread(&dimension_code, sizeof(int32_t), 1, pFile);
+        CHECK(res == 1);
         CHECK(dimension_code == 3);
 
         res = read_position(pFile,version);
         CHECK(res > 0);
 
-        fread(&dimension, sizeof(int32_t), 1, pFile);
+        res = fread(&dimension, sizeof(int32_t), 1, pFile);
+        CHECK(res == 1);
         CHECK(dimension == 3);
 
     }
@@ -651,8 +655,10 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
 
         int32_t keyword;
         int32_t nPoints;
+        int64_t res;
 
-        fread(&keyword, sizeof(int32_t), 1, pFile);
+        res = fread(&keyword, sizeof(int32_t), 1, pFile);
+        CHECK(res == 1);
         CHECK(keyword == 62) ; // SolAtVertices = 62
 
         // end of the upcomming section
@@ -660,11 +666,13 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
         CHECK(res > 0);
 
 
-        fread(&nPoints, sizeof(int32_t), 1, pFile);
+        res = fread(&nPoints, sizeof(int32_t), 1, pFile);
+        CHECK(res == 1);
         CHECK(nPoints > 0);
 
         int32_t solutions_per_node;
-        fread(&solutions_per_node, sizeof(int32_t), 1, pFile);
+        res = fread(&solutions_per_node, sizeof(int32_t), 1, pFile);
+        CHECK(res == 1);
         CHECK(solutions_per_node > 0);
 
         nVars = solutions_per_node;
@@ -673,7 +681,8 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
         int32_t solutions_type; 
         for ( int32_t i = 0 ; i < nVars ; i++)
         {
-            fread(&solutions_type, sizeof(int32_t), 1, pFile);
+            res = fread(&solutions_type, sizeof(int32_t), 1, pFile);
+            CHECK(res == 1);
             CHECK( solutions_type == 1);
         }
 
@@ -688,7 +697,8 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
     // finalize file
     {
         int32_t keyword;
-        fread(&keyword,sizeof(int32_t),1,pFile);
+        res = fread(&keyword,sizeof(int32_t),1,pFile);
+        CHECK(res == 1);
         CHECK( keyword == 54) ; // = GmfEmd
 
         res = read_position(pFile,version);
