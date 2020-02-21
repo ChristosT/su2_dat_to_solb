@@ -21,7 +21,7 @@
 #define SPRINT(x) std::cout << #x << " --> |" << x <<"|" <<std::endl;
 
 #endif
-#define CHECK(x) if( not (x)) { std::cerr<< #x << " failed @" << __LINE__ << std::endl; std::abort();}
+#define CHECK(x) if( not (x)) { std::cerr<< #x << " failed @" << __FILE__ << ":" << __LINE__ << std::endl; std::abort();}
 
 struct MetaData
 {
@@ -64,7 +64,7 @@ struct MetaData
         file >> sangle;
         file >> initial_bc_thrust;
         for( int i = 0 ; i < 5 ; i++)
-        file >> other[i];
+            file >> other[i];
         file.close();
         return true;
     }
@@ -82,8 +82,8 @@ static std::size_t get_number_of_points(const char* filename)
     {
         if ( line.size() > 0 )
         {
-             int res = std::strncmp(line.c_str(),"NPOIN", std::min(line.size(),(long unsigned int)5));
-             if (res == 0)
+            int res = std::strncmp(line.c_str(),"NPOIN", std::min(line.size(),(long unsigned int)5));
+            if (res == 0)
             {
                 // split in spaces
                 std::istringstream stream(line);
@@ -150,15 +150,15 @@ void read_variables_from_binary_restart_file( const char* filename,
     std::vector<int> Restart_Vars(nRestart_Vars); 
 
     /* SU2 binary file header has the following variables in the header
-    * [ SU2 magic number, number of variables per point, number of points, metatadata_ints, metatadata_doubles ]
-    * - SU2 magic number is expected to be 535532
-    * - metatadata_ints is expected to be  1
-    * - metatadata_doubles is expected to be 8
-    *
-    * for more see
-    * see void COutput::WriteRestart_Parallel_Binary
-    *  at https://github.com/su2code/SU2/blob/master/SU2_CFD/src/output_structure.cpp#L17527
-    */
+     * [ SU2 magic number, number of variables per point, number of points, metatadata_ints, metatadata_doubles ]
+     * - SU2 magic number is expected to be 535532
+     * - metatadata_ints is expected to be  1
+     * - metatadata_doubles is expected to be 8
+     *
+     * for more see
+     * see void COutput::WriteRestart_Parallel_Binary
+     *  at https://github.com/su2code/SU2/blob/master/SU2_CFD/src/output_structure.cpp#L17527
+     */
 
     // Read number of variables and make sure that it is 5
     std::size_t ret = fread(Restart_Vars.data(), sizeof(int), nRestart_Vars, pFile);
@@ -183,7 +183,7 @@ void read_variables_from_binary_restart_file( const char* filename,
         CHECK(ret == CGNS_STRING_SIZE);
         varnames[iVar] = str_buf;
     }
-    
+
     /*--- prepare return vector */
 
     values.resize(nVars*nPoints);
@@ -213,7 +213,7 @@ void read_variables_from_binary_restart_file( const char* filename,
     int metatadata_ints = Restart_Vars[3];
     int metatadata_doubles = Restart_Vars[4];
 
-    
+
     if(metatadata_ints > 0)
     {
         CHECK(metatadata_ints == 1);
@@ -250,7 +250,7 @@ void read_variables_from_binary_restart_file( const char* filename,
     //}
 
     #endif
-    
+
     /*--- Close the file. ---*/
 
     std::fclose(pFile);
@@ -266,7 +266,7 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     using std::FILE;
     using std::fopen;
     using std::fwrite;
-    
+
     const int CGNS_STRING_SIZE = 33;
 
     // get points from mesh file
@@ -281,7 +281,7 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     while(std::getline(mesh,line))
     {
         // Check whether the line starts by a character
-        // of if it is a comment
+        // or if it is a comment
         if(line.size() > 0 and (isalpha(line[0])) )
         {
             ret = std::strncmp(line.c_str(),"NPOIN", std::min((int)line.size(),5) );
@@ -327,7 +327,7 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     Restart_Vars[3] = 1; // 1 metadata int
     Restart_Vars[4] = 8; // 8 metadata doubles
 
-    
+
     ret = fwrite(Restart_Vars, sizeof(int), nRestart_Vars, pFile);
     CHECK( ret == nRestart_Vars);
 
@@ -335,20 +335,21 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     unpack_variable_names(varnames);
 
     char fieldname[CGNS_STRING_SIZE];
-        
+
     for (int iVar = 0; iVar < nFields; iVar++) 
     {
         std::strncpy(fieldname, varnames[iVar].data(), std::min((int)varnames.size(),CGNS_STRING_SIZE));
         ret = fwrite(fieldname, sizeof(char), CGNS_STRING_SIZE, pFile);
         CHECK(ret == CGNS_STRING_SIZE);
     }
-    
-    
+
+
     for( std::size_t i = 0 ; i < nPoints ; i++)
     {
         fwrite(points[i].data(), sizeof(double), 3, pFile);
         fwrite(&values[i*nVars], sizeof(double),nVars,pFile);
     }
+
     MetaData md;
     if(md.unpack())
     {
@@ -372,13 +373,13 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
 
 }
 void write_variables_to_ascii_restart_file( const char* solutionfile, 
-                                             const char* meshfile,
-                                             std::vector<double>& values)
+                                            const char* meshfile,
+                                            std::vector<double>& values)
 {
     using std::FILE;
     using std::fopen;
     using std::fwrite;
-    
+
     const int CGNS_STRING_SIZE = 33;
 
     // get points from mesh file
@@ -431,12 +432,12 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
 
     int nVars = values.size() / nPoints;
     int nFields = nVars + 3;
-    
+
     std::vector<std::string> varnames;
     unpack_variable_names(varnames);
 
     char fieldname[CGNS_STRING_SIZE];
-        
+
     file << "PointID";
     for (int iVar = 0; iVar < nFields; iVar++) 
     {
@@ -444,10 +445,10 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
         std::strncpy(fieldname, varnames[iVar].data(), std::min((int)varnames.size(),CGNS_STRING_SIZE));
         file << fieldname;
     }
-    
+
     file <<"\n";
     file << std::setprecision(15);
-    
+
     for( std::size_t i = 0 ; i < nPoints ; i++)
     {
         file << i <<"\t" ;
@@ -502,7 +503,7 @@ void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPo
     using std::fwrite;
     using std::fopen;
     using std::fclose;
-    
+
     FILE* pFile;
     pFile = fopen(filename.c_str(),"wb");
     const int code = 1;
@@ -512,7 +513,7 @@ void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPo
     DPRINT(nVars);
     DPRINT(nPoints);
     DPRINT(values.size());
-    CHECK( not values.empty())
+    CHECK( not values.empty());
     CHECK(values.size()  == nVars *nPoints);
     int64_t res;
 
@@ -523,8 +524,8 @@ void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPo
 
         res = fwrite(&version, sizeof(int), 1, pFile);
         CHECK(res == 1);
-        
-        
+
+
         // end of the upcomming section
         int end_position = 3*sizeof(int) + ftell(pFile);
         fwrite(&dimension_code, sizeof(int), 1, pFile);
@@ -537,30 +538,30 @@ void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPo
 
     // Write solution header 
 
-        const int keyword = 62 ; // = SolAtVertices
+    const int keyword = 62 ; // = SolAtVertices
 
-        // end of the upcomming section
-        int end_position = ftell(pFile) + (4 + nVars)*sizeof(int) + nPoints*nVars*sizeof(double);
+    // end of the upcomming section
+    int end_position = ftell(pFile) + (4 + nVars)*sizeof(int) + nPoints*nVars*sizeof(double);
 
-        fwrite(&keyword, sizeof(int), 1, pFile);
-        fwrite(&end_position, sizeof(int), 1, pFile);
+    fwrite(&keyword, sizeof(int), 1, pFile);
+    fwrite(&end_position, sizeof(int), 1, pFile);
 
 
-        int nPoints_32 = (int) nPoints; //TODO  can we use big integers ??
-        DPRINT(nPoints_32);
-        fwrite(&nPoints_32, sizeof(int), 1, pFile);
+    int nPoints_32 = (int) nPoints; //TODO  can we use big integers ??
+    DPRINT(nPoints_32);
+    fwrite(&nPoints_32, sizeof(int), 1, pFile);
 
-        const int solutions_per_node = nVars;
-        fwrite(&solutions_per_node, sizeof(int), 1, pFile);
+    const int solutions_per_node = nVars;
+    fwrite(&solutions_per_node, sizeof(int), 1, pFile);
 
-        const int solutions_type = 1; // 1 number per node
-        for ( int i = 0 ; i < nVars ; i++)
-            fwrite(&solutions_type, sizeof(int), 1, pFile);
+    const int solutions_type = 1; // 1 number per node
+    for ( int i = 0 ; i < nVars ; i++)
+        fwrite(&solutions_type, sizeof(int), 1, pFile);
 
     // write values at once
 
-        res = fwrite(values.data(), sizeof(double)*values.size(), 1, pFile);
-        CHECK(res == 1);
+    res = fwrite(values.data(), sizeof(double)*values.size(), 1, pFile);
+    CHECK(res == 1);
     // finalize file
     {
         const int keyword = 54 ; // =  GmfEmd
@@ -604,21 +605,21 @@ namespace
         return ans;
     }
 }
-            
+
 void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<double>& values)
 {
     using std::FILE;
     using std::fread;
     using std::fopen;
     using std::fclose;
-    
+
     FILE* pFile;
     pFile = fopen(filename.c_str(),"rb");
     int32_t code;
     int32_t version;
     int32_t dimension_code;
     int32_t dimension;
-    CHECK(values.empty())
+    CHECK(values.empty());
     int64_t res;
 
     // Read file header 
@@ -630,8 +631,8 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
         res = fread(&version, sizeof(int32_t), 1, pFile);
         CHECK(res == 1);
         CHECK(version == 2 || version == 3);
-        
-        
+
+
         // end of the upcomming section
         fread(&dimension_code, sizeof(int32_t), 1, pFile);
         CHECK(dimension_code == 3);
