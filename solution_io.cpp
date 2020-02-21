@@ -572,77 +572,107 @@ void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPo
 
     fclose(pFile);
 }
+namespace 
+{
+    // for now we just ignore it
+    int64_t read_position(std::FILE* pFile, int version)
+    {
+        using std::fread;
+
+        int64_t ans = -1;
+        if (version == 3)
+        {
+            int64_t end_position;
+            int64_t res;
+            res = fread(&end_position, sizeof(int64_t), 1, pFile);
+            ans = end_position;
+            CHECK(res == 1);
+        }
+        else if( version == 2)
+        {
+            int32_t end_position;
+            int64_t res;
+            res = fread(&end_position, sizeof(int32_t), 1, pFile);
+            ans = end_position;
+            CHECK(res == 1);
+        }
+        else
+        {   
+            CHECK(version == 2 || version == 3);
+        }
+
+        return ans;
+    }
+}
+            
 void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<double>& values)
 {
     using std::FILE;
-    using std::fwrite;
+    using std::fread;
     using std::fopen;
     using std::fclose;
     
     FILE* pFile;
     pFile = fopen(filename.c_str(),"rb");
-    int code;
-    int version;
-    int dimension_code;
-    int dimension;
+    int32_t code;
+    int32_t version;
+    int32_t dimension_code;
+    int32_t dimension;
     CHECK(values.empty())
     int64_t res;
 
-    // Write file header 
+    // Read file header 
     {
-        res = fread(&code, sizeof(int), 1, pFile);
+        res = fread(&code, sizeof(int32_t), 1, pFile);
         CHECK(res == 1);
         CHECK(code == 1);
 
-        res = fread(&version, sizeof(int), 1, pFile);
+        res = fread(&version, sizeof(int32_t), 1, pFile);
         CHECK(res == 1);
         CHECK(version == 2 || version == 3);
         
         
         // end of the upcomming section
-        int end_position;
-        fread(&dimension_code, sizeof(int), 1, pFile);
+        fread(&dimension_code, sizeof(int32_t), 1, pFile);
         CHECK(dimension_code == 3);
 
-        fread(&end_position, sizeof(int), 1, pFile);
-        CHECK(end_position > 0);
+        res = read_position(pFile,version);
+        CHECK(res > 0);
 
-        fread(&dimension, sizeof(int), 1, pFile);
+        fread(&dimension, sizeof(int32_t), 1, pFile);
         CHECK(dimension == 3);
 
-        // size of next
-        //end_position -= 3*sizeof(int);
     }
 
 
-    // Write solution header 
+    // Read solution header 
+    {
 
-        int keyword;
-        int nPoints;
-        int end_position;
+        int32_t keyword;
+        int32_t nPoints;
 
-
-        fread(&keyword, sizeof(int), 1, pFile);
+        fread(&keyword, sizeof(int32_t), 1, pFile);
         CHECK(keyword == 62) ; // SolAtVertices = 62
 
         // end of the upcomming section
-        fread(&end_position, sizeof(int), 1, pFile);
+        res = read_position(pFile,version);
+        CHECK(res > 0);
 
 
-        fread(&nPoints, sizeof(int), 1, pFile);
+        fread(&nPoints, sizeof(int32_t), 1, pFile);
         CHECK(nPoints > 0);
 
-        int solutions_per_node;
-        fread(&solutions_per_node, sizeof(int), 1, pFile);
+        int32_t solutions_per_node;
+        fread(&solutions_per_node, sizeof(int32_t), 1, pFile);
         CHECK(solutions_per_node > 0);
 
         nVars = solutions_per_node;
 
         //int end_position = ftell(pFile) + (4 + nvars)*sizeof(int) + npoints*nvars*sizeof(double);
-        int solutions_type; 
-        for ( int i = 0 ; i < nVars ; i++)
+        int32_t solutions_type; 
+        for ( int32_t i = 0 ; i < nVars ; i++)
         {
-            fread(&solutions_type, sizeof(int), 1, pFile);
+            fread(&solutions_type, sizeof(int32_t), 1, pFile);
             CHECK( solutions_type == 1);
         }
 
@@ -652,16 +682,16 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
         // read values at once
         res = fread(values.data(), sizeof(double)*values.size(), 1, pFile);
         CHECK(res == 1);
+    }
 
     // finalize file
     {
-        int keyword;
-        fread(&keyword,sizeof(int),1,pFile);
+        int32_t keyword;
+        fread(&keyword,sizeof(int32_t),1,pFile);
         CHECK( keyword == 54) ; // = GmfEmd
 
-        int end_position;
-        fread(&end_position, sizeof(int), 1, pFile);
-        CHECK(end_position == 0);
+        res = read_position(pFile,version);
+        CHECK(res == 0);
     }
 
 
