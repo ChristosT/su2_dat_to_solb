@@ -25,8 +25,9 @@ int main(int argc, char** argv)
     const char* newfile = argv[3];
 
     int nvars;
+    int dimension;
 
-    read_solb_with_scalar_vars(solfile,nvars,values);
+    read_solb_with_scalar_vars(solfile,dimension,nvars,values);
 
     if(print_binary) write_variables_to_binary_restart_file(newfile,meshfile,values);
     else write_variables_to_ascii_restart_file(newfile,meshfile,values);

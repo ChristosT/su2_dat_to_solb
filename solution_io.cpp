@@ -124,6 +124,14 @@ namespace
 
         file.close();
     }
+
+    int determine_dimension(std::vector<std::string>& varnames)
+    {
+        for(std::string& name :varnames)
+            if (name == "z" || name == "Z")
+                return 3;
+        return 2;
+    }
 }
 
 
@@ -132,7 +140,8 @@ namespace
 void read_variables_from_binary_restart_file( const char* filename, 
                                               std::vector<double>& values,
                                               std::vector<std::string>& varnames,
-                                              std::size_t& nPoints)
+                                              std::size_t& nPoints,
+                                              int& dimension)
 {
     using std::FILE;
     using std::fopen;
@@ -175,7 +184,6 @@ void read_variables_from_binary_restart_file( const char* filename,
 
     DPRINT(nFields);
     varnames.resize(nFields);
-    int nVars = nFields - 3; // disregard x,y,z coordinates
 
     // Find the column where mach number is located
     char str_buf[CGNS_STRING_SIZE];
@@ -185,6 +193,8 @@ void read_variables_from_binary_restart_file( const char* filename,
         CHECK(ret == CGNS_STRING_SIZE);
         varnames[iVar] = str_buf;
     }
+    dimension = determine_dimension(varnames);
+    int nVars = nFields - dimension; // disregard x,y,z coordinates
 
     /*--- prepare return vector */
 
@@ -203,8 +213,8 @@ void read_variables_from_binary_restart_file( const char* filename,
         double coords[3];
         for( size_t i = 0 ; i < nPoints;i++)
         {
-            ret = fread(coords, sizeof(double), 3, pFile);
-            CHECK(ret == 3);
+            ret = fread(coords, sizeof(double), dimension, pFile);
+            CHECK(ret == (std::size_t)dimension);
             ret = fread(&values[i*nVars], sizeof(double)*nVars, 1, pFile);
             CHECK(ret == 1);
         }
@@ -270,6 +280,8 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     using std::fwrite;
 
     const int CGNS_STRING_SIZE = 33;
+    int dimension = 0;
+    std::size_t nPoints = 0;
 
     // get points from mesh file
     std::fstream mesh;
@@ -280,35 +292,41 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     int ret;
     CHECK(mesh.is_open());
     DPRINT(meshfile);
-    while(std::getline(mesh,line))
+    while(std::getline(mesh,line) && (nPoints == 0 || dimension == 0))
     {
         // Check whether the line starts by a character
         // or if it is a comment
         if(line.size() > 0 and (isalpha(line[0])) )
         {
+            ret = std::strncmp(line.c_str(),"NDIME", std::min((int)line.size(),5) );
+            if( ret == 0 )
+            {
+                std::stringstream ss(line);
+                ss >> line; // NDIME=
+                ss >> dimension;
+            }
             ret = std::strncmp(line.c_str(),"NPOIN", std::min((int)line.size(),5) );
             if( ret == 0 )
             {
-
-                break;
+                std::stringstream ss(line);
+                ss >> line; // NPOIN=
+                ss >> nPoints;
             }
         }
     }
     CHECK(ret == 0);
-    std::size_t nPoints = 0;
-    std::vector< std::array<double,3> > points;
-    std::stringstream ss(line);
-    ss >> line; // NPOIN=
-    ss >> nPoints; 
+    std::vector< double > points;
     DPRINT(nPoints);
-    double x,y,z;
-    points.reserve(nPoints);
+    double x;
+    points.reserve(nPoints*dimension);
     while(std::getline(mesh,line))
     {
         std::stringstream ss(line);
-        ss >> x >> y >> z;
-
-        points.push_back({x,y,z});
+        for(int i = 0 ; i < dimension; i++)
+        {
+            ss >> x;
+            points.push_back(x);
+        }
     }
 
     mesh.close();
@@ -322,7 +340,7 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
     int nVars = values.size() / nPoints;
     const int nRestart_Vars = 5;
     int Restart_Vars[nRestart_Vars] = {-1};
-    int nFields = 3 + nVars;
+    int nFields = dimension + nVars;
     Restart_Vars[0] = 535532 ; // SU2 magic numbers
     Restart_Vars[1] = nFields;
     Restart_Vars[2] = nPoints;
@@ -348,7 +366,7 @@ void write_variables_to_binary_restart_file( const char* solutionfile,
 
     for( std::size_t i = 0 ; i < nPoints ; i++)
     {
-        fwrite(points[i].data(), sizeof(double), 3, pFile);
+        fwrite(&points[dimension*i], sizeof(double), dimension, pFile);
         fwrite(&values[i*nVars], sizeof(double),nVars,pFile);
     }
 
@@ -381,8 +399,10 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
     using std::FILE;
     using std::fopen;
     using std::fwrite;
-
+    
     const int CGNS_STRING_SIZE = 33;
+    int dimension = 0;
+    std::size_t nPoints = 0;
 
     // get points from mesh file
     std::fstream mesh;
@@ -393,35 +413,41 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
     int ret;
     CHECK(mesh.is_open());
     DPRINT(meshfile);
-    while(std::getline(mesh,line))
+    while(std::getline(mesh,line) && (nPoints == 0 || dimension == 0))
     {
         // Check whether the line starts by a character
-        // of if it is a comment
+        // or if it is a comment
         if(line.size() > 0 and (isalpha(line[0])) )
         {
+            ret = std::strncmp(line.c_str(),"NDIME", std::min((int)line.size(),5) );
+            if( ret == 0 )
+            {
+                std::stringstream ss(line);
+                ss >> line; // NDIME=
+                ss >> dimension;
+            }
             ret = std::strncmp(line.c_str(),"NPOIN", std::min((int)line.size(),5) );
             if( ret == 0 )
             {
-
-                break;
+                std::stringstream ss(line);
+                ss >> line; // NPOIN=
+                ss >> nPoints;
             }
         }
     }
     CHECK(ret == 0);
-    std::size_t nPoints = 0;
-    std::vector< std::array<double,3> > points;
-    std::stringstream ss(line);
-    ss >> line; // NPOIN=
-    ss >> nPoints; 
+    std::vector< double > points;
     DPRINT(nPoints);
-    double x,y,z;
-    points.reserve(nPoints);
+    double x;
+    points.reserve(nPoints*dimension);
     while(std::getline(mesh,line))
     {
         std::stringstream ss(line);
-        ss >> x >> y >> z;
-
-        points.push_back({x,y,z});
+        for(int i = 0 ; i < dimension; i++)
+        {
+            ss >> x;
+            points.push_back(x);
+        }
     }
 
     mesh.close();
@@ -433,7 +459,7 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
     CHECK(file.is_open());
 
     int nVars = values.size() / nPoints;
-    int nFields = nVars + 3;
+    int nFields = nVars + dimension;
 
     std::vector<std::string> varnames;
     unpack_variable_names(varnames);
@@ -454,8 +480,8 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
     for( std::size_t i = 0 ; i < nPoints ; i++)
     {
         file << i <<"\t" ;
-        for(int j = 0 ; j < 3; j++)
-            file << points[j][0] << "\t" << points[j][1] << "\t" << points[j][2] ;
+        for(int j = 0 ; j < dimension; j++)
+            file << points[i*dimension + j] << "\t";
         for(int j = 0 ; j < nVars; j++)
             file << "\t" << values[i*nVars +j];
         file <<"\n";
@@ -473,13 +499,13 @@ void write_variables_to_ascii_restart_file( const char* solutionfile,
 
 }
 
-void write_sol_with_scalar_vars(std::string filename,int nVars, std::size_t nPoints, std::vector<double>& values)
+void write_sol_with_scalar_vars(std::string filename,int dimension, int nVars, std::size_t nPoints, std::vector<double>& values)
 {
     std::fstream file;
     file.open(filename,std::ios_base::out);
     file << "MeshVersionFormatted 2\n";
     file << "\n";
-    file << "Dimension 3\n";
+    file << "Dimension " << dimension << "\n";
     file << "\n";
     file << "SolAtVertices \n" << nPoints << "\n";
     file << "1 ";
@@ -499,7 +525,7 @@ void write_sol_with_scalar_vars(std::string filename,int nVars, std::size_t nPoi
     file.close();
 }
 
-void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPoints, std::vector<double>& values)
+void write_solb_with_scalar_vars(std::string filename,int dimension, int nVars, std::size_t nPoints, std::vector<double>& values)
 {
     using std::FILE;
     using std::fwrite;
@@ -511,7 +537,6 @@ void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPo
     const int code = 1;
     const int version = 2;
     const int dimension_code = 3;
-    const int dimension = 3;
     DPRINT(nVars);
     DPRINT(nPoints);
     DPRINT(values.size());
@@ -577,7 +602,6 @@ void write_solb_with_scalar_vars(std::string filename,int nVars, std::size_t nPo
 }
 namespace 
 {
-    // for now we just ignore it
     int64_t read_position(std::FILE* pFile, int version)
     {
         using std::fread;
@@ -608,7 +632,7 @@ namespace
     }
 }
 
-void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<double>& values)
+void read_solb_with_scalar_vars(std::string filename,int& dimension, int& nVars, std::vector<double>& values)
 {
     using std::FILE;
     using std::fread;
@@ -620,7 +644,7 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
     int32_t code;
     int32_t version;
     int32_t dimension_code;
-    int32_t dimension;
+    int32_t dimension_value;
     CHECK(values.empty());
     int64_t res;
 
@@ -643,9 +667,10 @@ void read_solb_with_scalar_vars(std::string filename,int& nVars, std::vector<dou
         res = read_position(pFile,version);
         CHECK(res > 0);
 
-        res = fread(&dimension, sizeof(int32_t), 1, pFile);
+        res = fread(&dimension_value, sizeof(int32_t), 1, pFile);
+        dimension = dimension_value;
         CHECK(res == 1);
-        CHECK(dimension == 3);
+        CHECK(dimension == 2 || dimension == 3);
 
     }
 

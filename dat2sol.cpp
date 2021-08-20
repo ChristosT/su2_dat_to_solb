@@ -22,6 +22,7 @@ int main(int argc, char** argv)
     const char* filename = argv[1];
     std::string varname;
     std::size_t nPoints;
+    int dimension;
     bool print_binary = true;
 
     std::string outfile(argv[2]);
@@ -45,7 +46,7 @@ int main(int argc, char** argv)
     std::string basefilename(filename); 
     basefilename.erase(basefilename.size() - 4, 4);
 
-    read_variables_from_binary_restart_file(filename,values,varnames,nPoints);
+    read_variables_from_binary_restart_file(filename,values,varnames,nPoints,dimension);
 
     std::cout << "The solution file contains the following variables\n";
     std::cout << "--------------------------\n";
@@ -66,14 +67,14 @@ int main(int argc, char** argv)
         }
         else
         {
-            int column = iter - varnames.begin() - 3; // -3 because coornates are disgraded
+            int column = iter - varnames.begin() - dimension; // - dimension because coornates are disgraded
             if( column  < 0 )
             {
                 std::cerr<< "coordinates are disregarded during reading " << std::endl;
                 return 1;
             }
             std::cout << "column " << column << std::endl;
-            int nvars = varnames.size() - 3;
+            int nvars = varnames.size() - dimension;
             std::cout << "nPoints " << nPoints << std::endl;
             std::cout << "nvars " << nvars << std::endl;
             requested_variable_values.resize(nPoints);
@@ -83,16 +84,16 @@ int main(int argc, char** argv)
                 requested_variable_values[i] = values[ column + i*nvars];
             }
 
-            if (print_binary) write_solb_with_scalar_vars(outfile,1,nPoints,requested_variable_values);
-            else write_sol_with_scalar_vars(outfile,1,nPoints, requested_variable_values);
+            if (print_binary) write_solb_with_scalar_vars(outfile,dimension,1,nPoints,requested_variable_values);
+            else write_sol_with_scalar_vars(outfile,dimension,1,nPoints, requested_variable_values);
         }
 
     }
     else
     {
-        int nvars = varnames.size() - 3;
-        if (print_binary) write_solb_with_scalar_vars(outfile,nvars,nPoints,values);
-        else write_sol_with_scalar_vars(outfile,nvars,nPoints,values);
+        int nvars = varnames.size() - dimension;
+        if (print_binary) write_solb_with_scalar_vars(outfile,dimension,nvars,nPoints,values);
+        else write_sol_with_scalar_vars(outfile,dimension,nvars,nPoints,values);
     }
 
     return 0;
